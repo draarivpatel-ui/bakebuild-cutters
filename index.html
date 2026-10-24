@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BakeBuild cookie cutters: CAD inspector</title>
+<meta name="description" content="Inspect three parametric 3D-printable cookie cutters in 3D and plan view, check them against the 100 mm build limit, and download the STEP and STL files.">
+<link rel="stylesheet" href="assets/sheet.css">
+<link rel="modulepreload" href="assets/three-bundle.min.js">
+<link rel="modulepreload" href="assets/viewer.js">
+<link rel="modulepreload" href="assets/ui.js">
+<style>
+  :root { --accent: oklch(66% 0.13 22); --accent-ink: oklch(44% 0.13 22); --accent-wash: oklch(93% 0.04 22); }
+  [hidden] { display: none !important; }
+  #flat svg { width: 100%; height: 100%; display: block; }
+  .part-toggles { display: inline-flex; gap: var(--space-2); flex-wrap: wrap; }
+  .fits { display: grid; gap: var(--space-3); }
+</style>
+</head>
+<body>
+<a class="skip" href="#model">Skip to the cutter viewer</a>
+
+<header class="titleblock">
+  <div class="name">
+    <h1>BakeBuild cutters</h1>
+    <p>Three parametric cookie cutters modeled in OpenCascade (build123d), ready to print.</p>
+  </div>
+  <div class="cell"><span class="k">Parts</span><span class="v" id="tb-parts">loading</span></div>
+  <div class="cell"><span class="k">Tallest</span><span class="v" id="tb-height">loading</span></div>
+  <div class="cell"><span class="k">Solids valid</span><span class="v" id="tb-valid">loading</span></div>
+  <div class="cell"><span class="k">Source</span><a class="v" href="https://github.com/draarivpatel-ui/bakebuild-cutters">GitHub repo</a></div>
+</header>
+
+<nav class="nav" aria-label="Page sections">
+  <a href="#model">Viewer</a>
+  <a href="#parts">Measurements</a>
+  <a href="#fit">Build fit</a>
+  <a href="#files">Downloads</a>
+  <a href="#notes">Notes</a>
+</nav>
+
+<main>
+  <section class="stage" id="model" aria-label="Cutter viewer">
+    <div class="stage-grid">
+      <div class="viewport">
+        <div class="toolbar">
+          <div class="seg" id="modes" role="tablist" aria-label="Viewer mode">
+            <button type="button" role="tab" data-tab="d3" aria-selected="true">3D</button>
+            <button type="button" role="tab" data-tab="d2" aria-selected="false">Plan</button>
+          </div>
+          <span class="sep" id="sep1"></span>
+          <div class="seg" id="views" aria-label="Camera view">
+            <button type="button" data-view="iso">Iso</button>
+            <button type="button" data-view="top">Top</button>
+            <button type="button" data-view="front">Front</button>
+            <button type="button" data-view="side">Side</button>
+          </div>
+          <button type="button" class="btn" id="wire" aria-pressed="false">Wireframe</button>
+          <span class="sep" id="sep2"></span>
+          <div class="part-toggles" id="toggles" role="group" aria-label="Show or hide a cutter"></div>
+        </div>
+        <div class="canvas" id="canvas">
+          <div class="gl" id="gl"></div>
+          <div class="gl" id="flat" hidden><svg id="plan" role="img" aria-label="Plan outlines of the three cutters, measured from the STEP files"></svg></div>
+          <div class="fallback" id="fallback"><p>The 3D view needs WebGL and a web server. Use the Plan tab or the downloads below.</p></div>
+          <div class="hint" id="hint">Drag to orbit, scroll to zoom, click a cutter to select it</div>
+          <div class="legend" id="legend" hidden><span>Outlines are cross sections at each height step, 18 mm tall cutters</span></div>
+        </div>
+      </div>
+      <aside class="inspector" aria-live="polite">
+        <div>
+          <h2 id="insp-title">Set of three</h2>
+          <p class="sub" id="insp-sub">Select a cutter in the viewer or the table.</p>
+        </div>
+        <dl class="kv" id="insp-kv"></dl>
+        <ul class="checks" id="insp-checks"></ul>
+      </aside>
+    </div>
+  </section>
+
+  <section id="parts">
+    <div class="wrap">
+      <div class="head"><h2>Measurements</h2><p>Read from the STEP files by tools/inspect_cad.py. Select a row to inspect a cutter.</p></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Cutter</th><th>Shape</th><th class="num">Width mm</th><th class="num">Depth mm</th><th class="num">Height mm</th><th class="num">Volume mm3</th><th class="num">Thinnest wall mm</th><th>Solid</th></tr></thead>
+          <tbody id="part-rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="fit">
+    <div class="wrap">
+      <div class="head"><h2>Build volume fit</h2><p id="fit-note">Each cutter is printed on its own.</p></div>
+      <div class="fits" id="fits"></div>
+    </div>
+  </section>
+
+  <section id="files">
+    <div class="wrap">
+      <div class="head"><h2>Downloads</h2><p>SHA-256 values are computed in your browser from the files this page serves.</p></div>
+      <div class="bench" id="bench"></div>
+    </div>
+  </section>
+
+  <section id="notes">
+    <div class="wrap">
+      <div class="head"><h2>Notes</h2><p>Where the numbers on this page come from.</p></div>
+      <div class="notes">
+        <div class="note"><h3>Measured, not typed</h3><p>Bounding boxes, volumes, plan outlines and wall thickness in <code>assets/model.json</code> come from reading the STEP files with build123d and shapely.</p></div>
+        <div class="note"><h3>Thin walls</h3><p>The blade is designed at 0.9 mm. The thinnest wall found in the plan sections is lower than that on some cutters, mostly at star points. Check the table before you slice.</p></div>
+        <div class="note"><h3>The set file</h3><p>The set STEP lays the three cutters out 95 mm apart for display. It is wider than the build limit on purpose. Print the single-cutter files.</p></div>
+        <div class="note"><h3>Open it locally</h3><p>This page loads JSON and ES modules, so serve the folder (for example <code>python3 -m http.server</code>) instead of opening the file directly.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>BakeBuild parametric cookie cutter trio.</span>
+    <span>three.js is vendored under its MIT license, IBM Plex under the SIL OFL. Licenses are in assets/.</span>
+  </div>
+</footer>
+
+<script type="module">
+import { createViewer } from "./assets/viewer.js";
+import { h, svg, num, kv, tabs, bench } from "./assets/ui.js";
+
+const $ = (s) => document.querySelector(s);
+const OFFSETS = { cutter_1_benzene_ring: [-95, 0, 0], cutter_2_octagram_star: [0, 0, 0], cutter_3_erlenmeyer_flask: [95, 0, 0] };
+const COLORS = ["--accent", "--color-focus", "--color-ok"];
+
+try {
+  const model = await fetch("assets/model.json").then((r) => r.json());
+  const parts = model.parts;
+  const limit = model.limit_mm;
+  const byId = new Map(parts.map((p) => [p.id, p]));
+  let selected = null;
+
+  // ---- title block
+  $("#tb-parts").textContent = `${parts.length} cutters`;
+  $("#tb-height").textContent = `${Math.max(...parts.map((p) => p.size[2]))} mm`;
+  const allValid = parts.every((p) => p.valid && p.solids === 1);
+  $("#tb-valid").textContent = allValid ? "all 3 valid" : "check table";
+
+  // ---- 3D viewer
+  const viewer = await createViewer($("#gl"), {
+    meshes: parts.map((p, i) => ({ key: p.id, url: `${p.id}.stl`, color: COLORS[i % COLORS.length], offset: OFFSETS[p.id] })),
+    label: "Three cookie cutters",
+    onPick: (k) => select(k),
+  });
+  if (!viewer) {
+    $("#fallback").classList.add("show");
+    ["#views", "#wire", "#hint", "#toggles"].forEach((s) => ($(s).hidden = true));
+  } else {
+    document.querySelectorAll("#views button").forEach((b) => b.addEventListener("click", () => viewer.frame(b.dataset.view)));
+    $("#wire").addEventListener("click", (e) => {
+      const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+      e.currentTarget.setAttribute("aria-pressed", on);
+      viewer.setWireframe(on);
+    });
+    $("#toggles").replaceChildren(...parts.map((p) => h("button", {
+      class: "btn", type: "button", "aria-pressed": "true", text: p.label,
+      onclick: (e) => {
+        const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+        e.currentTarget.setAttribute("aria-pressed", on);
+        viewer.setVisible(p.id, on);
+        viewer.frame("iso");
+      },
+    })));
+  }
+
+  // ---- plan view, from the measured section outlines (STL coordinates, y up, so flip y)
+  const ring = (pts) => "M" + pts.map(([x, y], i) => `${i ? "L" : ""}${x.toFixed(3)} ${(-y).toFixed(3)}`).join(" ") + "Z";
+  const planSvg = $("#plan");
+  planSvg.setAttribute("viewBox", "-145 -62 290 124");
+  planSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  function drawPlan() {
+    const kids = [];
+    parts.forEach((p, i) => {
+      const [ox] = OFFSETS[p.id];
+      const dim = selected && selected !== p.id;
+      const g = svg("g", { transform: `translate(${ox} 0)`, opacity: dim ? 0.3 : 1 });
+      p.plan.forEach((s) => {
+        const d = [s.outer, ...s.holes].map(ring).join(" ");
+        g.append(svg("path", { d, "fill-rule": "evenodd", style: "fill:var(--accent-wash);fill-opacity:.55", class: "ink", "stroke-width": 1.4, "stroke-linejoin": "round" }));
+      });
+      kids.push(g);
+      kids.push(svg("text", { x: ox, y: p.bbox_max[1] + 9, "text-anchor": "middle", style: "font-size:4.5px" }, `${p.label}: ${num(p.size[0], 1)} x ${num(p.size[1], 1)} mm`));
+    });
+    planSvg.replaceChildren(...kids);
+  }
+  drawPlan();
+
+  const selectMode = tabs($("#modes"), { d3: $("#gl"), d2: $("#flat") }, (id) => {
+    $("#legend").hidden = id !== "d2";
+    $("#hint").hidden = id !== "d3" || !viewer;
+    if (viewer) { $("#views").hidden = id !== "d3"; $("#wire").hidden = id !== "d3"; $("#toggles").hidden = id !== "d3"; $("#sep1").hidden = id !== "d3"; $("#sep2").hidden = id !== "d3"; }
+  });
+
+  // ---- inspector
+  const fitRow = (label, value) => h("div", { class: "fit-row" },
+    h("div", { class: "top" }, h("span", { text: label }), h("span", { text: `${num(value, 1)} of ${limit} mm` })),
+    h("div", { class: "meter" }, h("i", { style: `width:${Math.min(100, (value / limit) * 100)}%` })));
+
+  function inspect() {
+    const checks = $("#insp-checks");
+    if (!selected) {
+      $("#insp-title").textContent = "Set of three";
+      $("#insp-sub").textContent = "Select a cutter in the viewer or the table.";
+      const s = model.set;
+      kv($("#insp-kv"), [
+        ["Laid out in", `${num(s.size[0], 1)} x ${num(s.size[1], 1)} x ${num(s.size[2], 1)} mm`],
+        ["Solids", String(s.solids)],
+        ["Faces", String(s.faces)],
+        ["Volume", `${num(s.volume_mm3, 1)} mm3`],
+        ["Valid", s.valid ? "yes" : "no"],
+      ]);
+      checks.replaceChildren(h("li", {}, h("span", { class: `badge ${allValid ? "ok" : "flag"}`, text: allValid ? "OK" : "FLAG" }), "Each cutter is one valid solid"));
+      return;
+    }
+    const p = byId.get(selected);
+    $("#insp-title").textContent = p.label;
+    $("#insp-sub").textContent = p.title;
+    kv($("#insp-kv"), [
+      ["Width", `${num(p.size[0], 2)} mm`],
+      ["Depth", `${num(p.size[1], 2)} mm`],
+      ["Height", `${num(p.size[2], 2)} mm`],
+      ["Volume", `${num(p.volume_mm3, 1)} mm3`],
+      ["Faces", String(p.faces)],
+      ["Section heights", p.levels.join(", ") + " mm"],
+      ["Wall, thinnest", `${num(p.wall.min, 3)} mm`],
+      ["Wall, mean", `${num(p.wall.mean, 3)} mm`],
+    ]);
+    const fits = Math.max(p.size[0], p.size[1], p.size[2]) <= limit;
+    checks.replaceChildren(
+      h("li", {}, h("span", { class: `badge ${p.valid && p.solids === 1 ? "ok" : "flag"}`, text: p.valid && p.solids === 1 ? "OK" : "FLAG" }), "One valid solid"),
+      h("li", {}, h("span", { class: `badge ${fits ? "ok" : "flag"}`, text: fits ? "OK" : "FLAG" }), fits ? `Fits the ${limit} mm build limit` : `Exceeds the ${limit} mm build limit`),
+      h("li", {}, h("span", { class: "badge plain", text: "INFO" }), `Thinnest measured wall is ${num(p.wall.min, 3)} mm. The blade is designed at 0.9 mm, so check your slicer's minimum feature size.`),
+    );
+  }
+
+  function select(id) {
+    selected = selected === id ? null : id;
+    if (viewer) viewer.setHighlight(selected);
+    document.querySelectorAll("#part-rows tr").forEach((r) => r.setAttribute("aria-selected", String(r.dataset.id === selected)));
+    drawPlan();
+    inspect();
+  }
+
+  // ---- measurements table
+  $("#part-rows").replaceChildren(...parts.map((p) => {
+    const tr = h("tr", { tabindex: 0, "aria-selected": "false", "data-id": p.id },
+      h("td", { text: p.label }),
+      h("td", { text: p.title }),
+      h("td", { class: "num", text: num(p.size[0], 2) }),
+      h("td", { class: "num", text: num(p.size[1], 2) }),
+      h("td", { class: "num", text: num(p.size[2], 2) }),
+      h("td", { class: "num", text: num(p.volume_mm3, 1) }),
+      h("td", { class: "num", text: num(p.wall.min, 3) }),
+      h("td", {}, h("span", { class: `badge ${p.valid && p.solids === 1 ? "ok" : "flag"}`, text: p.valid && p.solids === 1 ? "valid" : "check" })));
+    tr.addEventListener("click", () => select(p.id));
+    tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(p.id); } });
+    return tr;
+  }));
+  inspect();
+
+  // ---- build volume fit
+  $("#fits").replaceChildren(...parts.map((p) => h("div", { class: "note" },
+    h("h3", { text: `${p.label}, ${p.title}` }),
+    fitRow("Widest footprint side", Math.max(p.size[0], p.size[1])),
+    fitRow("Height", p.size[2]))));
+  $("#fit-note").textContent = `Limit is ${limit} mm on each axis. Each cutter is printed on its own.`;
+
+  // ---- downloads (hashes computed from the served bytes)
+  const groups = [
+    { title: "Single cutters, STEP", files: parts.map((p) => ({ path: `${p.id}.step`, desc: `${p.label}, ${p.title}` })) },
+    { title: "Single cutters, STL for slicers", files: parts.map((p) => ({ path: `${p.id}.stl`, desc: `${p.label}, ${p.title}` })) },
+    { title: "Set and source", files: [
+      { path: model.set.file, desc: "All three cutters laid out in one STEP assembly" },
+      { path: "generate_cutters.py", desc: "build123d script that generates every file here" },
+    ] },
+  ];
+  const manifest = [];
+  if (globalThis.crypto?.subtle) {
+    await Promise.all(groups.flatMap((g) => g.files).map(async (f) => {
+      try {
+        const buf = await fetch(f.path).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(f.path))));
+        const hex = [...new Uint8Array(await crypto.subtle.digest("SHA-256", buf))].map((b) => b.toString(16).padStart(2, "0")).join("");
+        manifest.push({ path: f.path, bytes: buf.byteLength, sha256: hex });
+      } catch (e) { console.warn("no hash for", f.path); }
+    }));
+  }
+  bench($("#bench"), groups, manifest);
+} catch (err) {
+  $("#insp-sub").textContent = "Could not load the model data. Serve this folder over HTTP and reload.";
+  console.error(err);
+}
+</script>
+</body>
+</html>
