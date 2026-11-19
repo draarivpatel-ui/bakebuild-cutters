@@ -6,10 +6,9 @@ wall thickness). Nothing here is typed in by hand except the part labels.
 Run with a Python that has build123d and shapely installed:  python tools/inspect_cad.py
 """
 import json
-import math
 from pathlib import Path
 
-from build123d import Axis, import_step
+from build123d import import_step
 from OCP.BRepTools import BRepTools_WireExplorer
 from shapely.geometry import LinearRing, Polygon
 
